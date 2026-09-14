@@ -47,5 +47,5 @@ contract JunNFT is ERC721EnumerableUpgradeable, OwnableUpgradeable, UUPSUpgradea
      */
     // 升级预留存储，不能按未使用变量删除。
     // forge-lint: disable-next-line(unused-state-variables)
-    uint256[48] private _gap;
+    uint256[48] private __gap;
 }

@@ -6,7 +6,7 @@ import {ERC721Holder} from "@openzeppelin/contracts/token/ERC721/utils/ERC721Hol
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {Auction} from "../src/Auction.sol";
 import {JunNFT} from "../src/JunNFT.sol";
-import {AuctionTestFeed} from "./AuctionFoundry.t.sol";
+import {AuctionTestFeed} from "./Auction.t.sol";
 
 // 本地回归测试：无需 RPC，金额/时间常量直接表达预期。
 // forge-lint: disable-start(literal-instead-of-constant)

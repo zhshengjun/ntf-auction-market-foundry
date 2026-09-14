@@ -19,5 +19,5 @@ docs/
 .env.*
 !.env.example
 
-
-
+#
+.deps/
