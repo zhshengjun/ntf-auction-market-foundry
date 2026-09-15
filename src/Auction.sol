@@ -473,5 +473,5 @@ contract Auction is ERC721Holder, ReentrancyGuard, PausableUpgradeable, Ownable2
 
     // 升级预留存储，保留名称、长度和位置。
     // forge-lint: disable-next-line(mixed-case-variable, unused-state-variables)
-    uint256[41] private __gap;
+    uint256[41] private _gap;
 }

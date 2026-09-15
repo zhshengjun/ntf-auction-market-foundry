@@ -5,9 +5,11 @@ pragma solidity ^0.8.36;
 
 import {Auction} from "../src/Auction.sol";
 import {JunNFT} from "../src/JunNFT.sol";
+import {Deploy} from "../script/Deploy.s.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ERC721Holder} from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import {Test} from "forge-std/Test.sol";
 
@@ -71,6 +73,19 @@ contract AuctionTestFeed {
 
     function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
         return (1, answer, updatedAt, updatedAt, 1);
+    }
+}
+
+// 恶意测试 NFT：报告转账成功但不改变所有权，用于验证 Auction 的转入后所有权检查。
+contract NonTransferringNFT is ERC721 {
+    event TransferIgnored();
+
+    constructor() ERC721("Broken NFT", "BROKEN") {
+        _safeMint(msg.sender, 1);
+    }
+
+    function safeTransferFrom(address, address, uint256, bytes memory) public override {
+        emit TransferIgnored();
     }
 }
 
@@ -1137,6 +1152,58 @@ contract AuctionTest is Test, ERC721Holder {
         auction.claimNFT(id, other);
         // 断言：这里读取到的实际值必须等于期望值，否则说明状态变化不符合设计。
         assertEq(nft.ownerOf(1), other);
+    }
+
+    // 【测试目标】覆盖剩余的币种配置和价格保护分支。
+    function test_RemainingPriceValidationBranches() public {
+        vm.expectRevert(abi.encodeWithSelector(Auction.UnsupportedToken.selector, address(1)));
+        auction.setTokenEnabled(address(1), true);
+
+        vm.expectRevert(abi.encodeWithSelector(Auction.UnsupportedToken.selector, address(1)));
+        // forge-lint: disable-next-line(unused-return)
+        auction.quoteUsd(address(1), 1);
+
+        AuctionTestFeed replacement = new AuctionTestFeed();
+        replacement.setDecimals(19);
+        vm.expectRevert(Auction.InvalidPriceConfig.selector);
+        auction.configureToken(address(0), address(replacement), 1 hours);
+
+        replacement.setDecimals(0);
+        replacement.set(1, block.timestamp);
+        auction.configureToken(address(0), address(replacement), 1 hours);
+        replacement.set(type(int256).max, block.timestamp);
+        vm.expectRevert(Auction.InvalidPrice.selector);
+        // forge-lint: disable-next-line(unused-return)
+        auction.quoteUsd(address(0), 1 ether);
+    }
+
+    // 【测试目标】ERC721 声称转账成功但所有权未变化时，创建拍卖必须回滚。
+    function test_CreateAuctionRejectsNFTThatDoesNotTransfer() public {
+        NonTransferringNFT brokenNft = new NonTransferringNFT();
+
+        vm.expectRevert(Auction.InvalidNFT.selector);
+        // forge-lint: disable-next-line(unused-return)
+        auction.createAuction(address(brokenNft), 1, 0, 1 hours);
+    }
+
+    // 【测试目标】JunNFT owner 可以执行 UUPS 升级，升级后原有铸造行为正常。
+    function test_JunNFTOwnerCanUpgrade() public {
+        nft.upgradeToAndCall(address(new JunNFT()), bytes(""));
+        nft.mint(address(1));
+        assertEq(nft.ownerOf(2), address(1));
+    }
+
+    // 【测试目标】部署脚本创建并正确初始化 Auction 与 JunNFT 代理。
+    function test_DeployRunCreatesInitializedProxies() public {
+        address initialOwner = address(0xA11CE);
+        // 测试部署脚本需要提供脚本读取的环境变量。
+        // forge-lint: disable-next-line(unsafe-cheatcode)
+        vm.setEnv("INITIAL_OWNER", vm.toString(initialOwner));
+
+        (address auctionProxy, address nftProxy) = new Deploy().run();
+
+        assertEq(Auction(auctionProxy).owner(), initialOwner);
+        assertEq(JunNFT(nftProxy).owner(), initialOwner);
     }
 
     // 【Fuzz 测试目标】让 Foundry 自动生成大量 first/extra 输入，检查资金守恒性质。
