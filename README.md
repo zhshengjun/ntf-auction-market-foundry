@@ -48,7 +48,10 @@ $ anvil
 ### Deploy
 
 ```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
+$ cp .env.example .env
+$ set -a; source .env; set +a
+$ forge script script/Deploy.s.sol:Deploy --rpc-url sepolia --private-key "$PRIVATE_KEY"
+# Add --broadcast only when you are ready to send transactions.
 ```
 
 ### Cast
